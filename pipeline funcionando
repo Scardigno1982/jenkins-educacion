@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Eliminar Directorio Existente') {
+            steps {
+                sh 'rm -rf pagedie'
+            }
+        }
+
+        
+        stage('Clonar o Actualizar Repositorio') {
+            agent any
+            steps {
+                withCredentials([string(credentialsId: 'github-pat', variable: 'GITHUB_TOKEN')]) {
+                    sh 'git clone -b master https://$GITHUB_TOKEN@github.com/jsm-l/pagedie.git pagedie || (cd pagedie && git pull)'
+                }
+            }
+        }
+
+        stage('Instalar NPM y Construir') {
+            agent { 
+                docker { 
+                    image 'node:14' // Usar una imagen Docker con Node.js versión 14
+                    args '-u root:root' // Ejecutar como usuario root si es necesario
+                } 
+            }
+            steps {
+                dir('pagedie') {
+                    sh 'node -v' // Esto debería mostrar la versión 14.x.x
+                    sh 'npm install'
+                    sh 'npm run build -- --output-path=./dist/out'
+                }
+            }
+        }
+
+        stage('Iniciar ng serve para pruebas') {
+            agent { 
+                docker { 
+                    image 'node:14' // Usar la misma imagen Docker con Node.js versión 14
+                    args '-u root:root' 
+                } 
+            }
+            steps {
+                dir('pagedie') {
+                    sh 'nohup ng serve &'
+                }
+            }
+        }
+
+        // Resto del pipeline...
+    }
+}
+

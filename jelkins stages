@@ -1,0 +1,54 @@
+#!/bin/bash
+# rm -rf /var/lib/jenkins/workspace/pldatos2
+git clone -b main https://$GITHUB_TOKEN@github.com/jsm-l/pldatos.git /var/lib/jenkins/workspace/pldatos2
+cd /var/lib/jenkins/workspace/pldatos2
+source /var/lib/jenkins/.nvm/nvm.sh
+nvm use 14
+npm install
+npm run build -- --output-path=./dist/out
+
+
+#!/bin/bash
+# Navegar al directorio del proyecto
+cd /var/lib/jenkins/workspace/pldatos2
+ 
+# Construir la imagen Docker
+customImage="sergioscardigno82/pagedie:${BUILD_NUMBER}"
+docker build -t $customImage .
+ 
+docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+docker push $customImage
+
+
+#!/bin/bash
+#!/bin/bash
+
+# Variables de servidor remoto
+REMOTE_HOST='192.168.57.14'
+REMOTE_DIR='/var/www/html/pl_jelkins/'
+SOURCE_DIR='/var/lib/jenkins/workspace/pldatos2/dist/out'
+
+# Obtener el ID de las credenciales almacenadas en Jenkins
+CREDENTIALS_ID='192.168.57.14'
+
+# Obtener el usuario y la contraseña de las credenciales almacenadas en Jenkins
+USER=$(echo $CREDENTIALS_ID | tr -d '.' | tr -d '[:space:]')
+PASSWORD=$(curl -s -u $JENKINS_USER:$JENKINS_TOKEN "http://localhost:8080/credentials/store/system/domain/_/api/json" | jq -r ".credentials[] | select(.id == '$CREDENTIALS_ID') | .username +\":\"+ .password\"")
+
+# Depurar: Imprimir información antes de ejecutar los comandos SSH
+echo "Eliminando directorio en el servidor remoto: sshpass -p $PASSWORD ssh $USER@$REMOTE_HOST \"rm -rf $REMOTE_DIR\""
+
+# Eliminar directorio actual en el servidor remoto
+sshpass -p $PASSWORD ssh $USER@$REMOTE_HOST "rm -rf $REMOTE_DIR"
+
+# Depurar: Imprimir información antes de ejecutar el siguiente comando SSH
+echo "Creando directorio en el servidor remoto: sshpass -p $PASSWORD ssh $USER@$REMOTE_HOST \"mkdir -p $REMOTE_DIR\""
+
+# Crear el directorio en el servidor remoto si no existe
+sshpass -p $PASSWORD ssh $USER@$REMOTE_HOST "mkdir -p $REMOTE_DIR"
+
+# Depurar: Imprimir información antes de ejecutar el comando SCP
+echo "Copiando archivos al servidor remoto: sshpass -p $PASSWORD scp -r $SOURCE_DIR $USER@$REMOTE_HOST:$REMOTE_DIR"
+
+# Copiar archivos al servidor remoto
+sshpass -p $PASSWORD scp -r $SOURCE_DIR $USER@$REMOTE_HOST:$REMOTE_DIR
